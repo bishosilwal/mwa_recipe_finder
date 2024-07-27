@@ -62,11 +62,12 @@ const updateDish = async (req, res) => {
 const deleteDish = async (req, res) => {
   try {
     const { id } = req.params;
-    const dish = await Dish.findByIdAndDelete(id);
-    if (!dish) return res.status(404).json({ message: "Dish not found" });
+    const deletedDish = await Dish.findOneAndDelete({ _id: id });
+    if (!deletedDish)
+      return res.status(404).json({ message: "Dish not found" });
     res.status(200).json({
       message: "Dish deleted successfully",
-      dish: dish,
+      dish: deletedDish,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
