@@ -36,7 +36,10 @@ const createDish = async (req, res) => {
 
     const newDish = new Dish(req.body);
     const dish = await newDish.save();
-    res.status(201).json(dish);
+    res.status(201).json({
+      message: "Dish created successfully",
+      dish: dish,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -47,7 +50,10 @@ const updateDish = async (req, res) => {
     const { id } = req.params;
     const dish = await Dish.findByIdAndUpdate(id, req.body);
     if (!dish) return res.status(404).json({ message: "Dish not found" });
-    res.status(200).json(dish);
+    res.status(200).json({
+      message: "Dish updated successfully",
+      dish: dish,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -58,7 +64,10 @@ const deleteDish = async (req, res) => {
     const { id } = req.params;
     const dish = await Dish.findByIdAndDelete(id);
     if (!dish) return res.status(404).json({ message: "Dish not found" });
-    res.status(200).json(dish);
+    res.status(200).json({
+      message: "Dish deleted successfully",
+      dish: dish,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

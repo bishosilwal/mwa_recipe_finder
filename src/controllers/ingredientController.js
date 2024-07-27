@@ -25,7 +25,10 @@ const createIngredient = async (req, res) => {
   try {
     const newIngredient = new Ingredient(req.body);
     const ingredient = await newIngredient.save();
-    res.status(201).json(ingredient);
+    res.status(201).json({
+      message: "Ingredient created successfully",
+      ingredient: ingredient,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -37,7 +40,10 @@ const updateIngredient = async (req, res) => {
     const ingredient = await Ingredient.findByIdAndUpdate(id, req.body);
     if (!ingredient)
       return res.status(404).json({ message: "Ingredient not found" });
-    res.status(200).json(ingredient);
+    res.status(200).json({
+      message: "Ingredient updated successfully",
+      ingredient: ingredient,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -49,7 +55,10 @@ const deleteIngredient = async (req, res) => {
     const ingredient = await Ingredient.findByIdAndDelete(id);
     if (!ingredient)
       return res.status(404).json({ message: "Ingredient not found" });
-    res.status(200).json(ingredient);
+    res.status(200).json({
+      message: "Ingredient deleted successfully",
+      ingredient: ingredient,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
