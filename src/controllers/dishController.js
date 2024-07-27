@@ -1,4 +1,5 @@
 const Dish = require("../models/Dish");
+const Ingredient = require("../models/Ingredient");
 
 const getAllDishes = async (req, res) => {
   try {
@@ -22,6 +23,17 @@ const getDishById = async (req, res) => {
 
 const createDish = async (req, res) => {
   try {
+    const ingredientPromise = req.body?.ingredients?.map(async (ingredient) => {
+      let newIngredient = new Ingredient(ingredient);
+      return await newIngredient.save();
+    });
+    if (ingredientPromise) {
+      let ingredients = await Promise.all(ingredientPromise);
+      req.body.ingredients = ingredients.map((ingredient) => ingredient._id);
+    } else {
+      req.body.ingredients = [];
+    }
+
     const newDish = new Dish(req.body);
     const dish = await newDish.save();
     res.status(201).json(dish);

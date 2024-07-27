@@ -6,7 +6,7 @@ const dishSchema = new mongoose.Schema({
   price: { type: Number, required: false, default: 0 },
   category: { type: String, required: false },
   country: { type: String, rerquired: false },
-  ingredients: [ingredientModel.schema],
+  ingredients: [{ type: mongoose.Schema.Types.ObjectId, ref: "Ingredient" }],
 });
 
 module.exports = mongoose.model("Dish", dishSchema, "dish");
