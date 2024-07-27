@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const seedDatabase = require("./seed");
 
 mongoose.connect(process.env.DB_URL, {
   useNewUrlParser: true,
@@ -7,6 +8,7 @@ mongoose.connect(process.env.DB_URL, {
 
 mongoose.connection.on("connected", function () {
   console.log("connected to db " + process.env.DB_NAME);
+  seedDatabase(); // Seed the database
 });
 
 mongoose.connection.on("disconnected", function () {
