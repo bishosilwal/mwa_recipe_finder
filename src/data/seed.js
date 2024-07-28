@@ -48,7 +48,6 @@ const seedDatabase = async () => {
     const dishes = [
       {
         name: "Spaghetti Carbonara",
-        price: 12.99,
         category: "Pasta",
         country: "Italy",
         ingredients: [
@@ -62,7 +61,6 @@ const seedDatabase = async () => {
       },
       {
         name: "Chicken Fried Rice",
-        price: 8.99,
         category: "Rice Dish",
         country: "China",
         ingredients: [
@@ -76,7 +74,6 @@ const seedDatabase = async () => {
       },
       {
         name: "Beef Stroganoff",
-        price: 15.99,
         category: "Meat Dish",
         country: "Russia",
         ingredients: [
@@ -90,7 +87,6 @@ const seedDatabase = async () => {
       },
       {
         name: "Mashed Potatoes",
-        price: 5.99,
         category: "Side Dish",
         country: "USA",
         ingredients: [
@@ -104,7 +100,6 @@ const seedDatabase = async () => {
       },
       {
         name: "Vegetable Stir Fry",
-        price: 7.99,
         category: "Vegetable Dish",
         country: "Thailand",
         ingredients: [
