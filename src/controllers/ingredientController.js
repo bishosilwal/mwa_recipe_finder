@@ -15,10 +15,9 @@ const validateIngredientData = (data) => {
     errors.push("Invalid amount");
   }
 
-  if (!data.unit || typeof data.unit !== "string" || data.unit.trim() === "") {
+  if (data.unit && (typeof data.unit !== "string" || data.unit.trim() === "")) {
     errors.push("Invalid or missing unit");
   }
-
   return errors;
 };
 
@@ -95,6 +94,43 @@ const updateIngredient = async (req, res) => {
   }
 };
 
+const partialUpdateIngredient = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!validateObjectId(id)) {
+      return res.status(400).json({ message: "Invalid ingredient ID format" });
+    }
+
+    //check if only one field is being updated
+    if (Object.keys(req.body).length !== 1) {
+      return res
+        .status(400)
+        .json({ message: "Only one field can be updated at a time" });
+    }
+
+    const validationErrors = validateIngredientData(req.body);
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ message: validationErrors.join(", ") });
+    } else {
+      const ingredient = await Ingredient.findByIdAndUpdate(
+        id,
+        { $set: req.body },
+        { new: true }
+      );
+      if (!ingredient) {
+        return res.status(404).json({ message: "Ingredient not found" });
+      } else {
+        res.status(200).json({
+          message: "Ingredient updated successfully",
+          ingredient: ingredient,
+        });
+      }
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const deleteIngredient = async (req, res) => {
   try {
     const { id } = req.params;
@@ -121,5 +157,6 @@ module.exports = {
   getIngredientById,
   createIngredient,
   updateIngredient,
+  partialUpdateIngredient,
   deleteIngredient,
 };

@@ -105,6 +105,30 @@ const updateDish = async (req, res) => {
   }
 };
 
+const partialUpdateDish = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const dish = req.body;
+    //check if only one field is being updated
+    if (Object.keys(req.body).length !== 1) {
+      return res
+        .status(400)
+        .json({ message: "Only one field can be updated at a time" });
+    }
+    validateDish(dish);
+    const updatedDish = await Dish.findByIdAndUpdate(id, dish, { new: true });
+    if (!updatedDish) {
+      return res.status(404).json({ message: "Dish not found" });
+    }
+    res.status(200).json({
+      message: "Dish updated successfully",
+      dish: updatedDish,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const deleteDish = async (req, res) => {
   try {
     const { id } = req.params;
@@ -125,5 +149,6 @@ module.exports = {
   getDishById,
   createDish,
   updateDish,
+  partialUpdateDish,
   deleteDish,
 };
