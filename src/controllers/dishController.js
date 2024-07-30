@@ -1,12 +1,11 @@
 const Dish = require("../models/Dish");
-const Ingredient = require("../models/Ingredient");
 var callbackify = require("callbackify");
 
 function validateDish(dish) {
   if (typeof dish !== "object" || dish === null) {
     throw new Error("Dish must be an object");
   }
-  if (typeof dish.name !== "string" || dish.name.trim() === "") {
+  if (dish.name && (typeof dish.name !== "string" || dish.name.trim() === "")) {
     throw new Error("Dish name must be a non-empty string");
   }
   if (dish.category && typeof dish.category !== "string") {
@@ -72,7 +71,7 @@ const getAllDishes = (req, res) => {
   }
 };
 
-const getDishById = async (req, res) => {
+const getDishById = (req, res) => {
   try {
     const { id } = req.params;
     _getDishByIdWithCallback(id, function (error, dish) {
@@ -168,11 +167,11 @@ const deleteDish = async (req, res) => {
   }
 };
 
-const _updateOne = function (req, res, dishUpdateCallback) {
+const _updateOne = function (req, res, preDishUpdateCallback) {
   const { id } = req.params;
 
   _getDishByIdWithCallback(id, function (error, dish) {
-    const response = { status: 204, message: dish };
+    const response = { status: 200, message: dish };
     if (error) {
       response.status = 500;
       response.message = error;
@@ -180,58 +179,45 @@ const _updateOne = function (req, res, dishUpdateCallback) {
       response.status = 404;
       response.message = { message: "Dish with ID not found" };
     }
-    if (response.status !== 204) {
-      res.status(response.status).json(response.message);
+    if (response.status !== 200) {
+      return res.status(response.status).json(response.message);
     }
+    dish = preDishUpdateCallback(req, dish);
 
-    dishUpdateCallback(req, res, dish);
+    _saveDishWithCallback(dish, function (err, updatedDish) {
+      const response = { status: 204, message: updatedDish };
+      if (err) {
+        response.status = 500;
+        response.message = err;
+      } else if (!updatedDish) {
+        response.status = 404;
+        response.message = { message: "Dish with ID not found" };
+      } else {
+        response.message = updatedDish;
+        response.status = 200;
+      }
+      res.status(response.status).json(response.message);
+    });
   });
 };
 
-const _fullDishUpdate = function (req, res, dish) {
+const _fullDishUpdate = function (req, dish) {
   dish.name = req.body.name;
   dish.category = req.body.category;
   dish.country = req.body.country;
   dish.ingredients = req.body.ingredients;
-  _saveDishWithCallback(dish, function (err, updatedDish) {
-    const response = { status: 204, message: updatedDish };
-    if (err) {
-      response.status = 500;
-      response.message = err;
-    } else if (!updatedDish) {
-      response.status = 404;
-      response.message = { message: "Dish with ID not found" };
-    } else {
-      response.message = updatedDish;
-      response.status = 200;
-    }
-    res.status(response.status).json(response.message);
-  });
+
+  return dish;
 };
 
-const _partialDishUpdate = function (req, res, dish) {
+const _partialDishUpdate = function (req, dish) {
   if (req.body.name) dish.name = req.body.name;
   if (req.body.category) dish.category = req.body.category;
   if (req.body.country) dish.country = req.body.country;
   if (req.body.ingredients) dish.ingredients = req.body.ingredients;
-  _saveDishWithCallback(dish, function (err, updatedDish) {
-    const response = { status: 204, message: updatedDish };
-    if (err) {
-      console.log("Error updating dish");
-      response.status = 500;
-      response.message = err;
-    } else if (!updatedDish) {
-      console.log("Dish with given ID not found");
-      response.status = 404;
-      response.message = { message: "Dish with ID not found" };
-    } else {
-      response.message = updatedDish;
-      response.status = 200;
-    }
-    res.status(response.status).json(response.message);
-  });
-};
 
+  return dish;
+};
 
 module.exports = {
   getAllDishes,

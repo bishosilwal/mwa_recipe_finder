@@ -1,5 +1,5 @@
-const Ingredient = require("../models/Ingredient");
-
+const Dish = require("../models/Dish");
+var callbackify = require("callbackify");
 const validateObjectId = (id) => {
   // Basic validation for a MongoDB ObjectId (24 hex characters)
   return /^[0-9a-fA-F]{24}$/.test(id);
@@ -8,7 +8,7 @@ const validateObjectId = (id) => {
 const validateIngredientData = (data) => {
   const errors = [];
 
-  if (!data.name || typeof data.name !== "string" || data.name.trim() === "") {
+  if (data.name && (typeof data.name !== "string" || data.name.trim() === "")) {
     errors.push("Invalid or missing name");
   }
   if (data.amount && (typeof data.amount !== "number" || data.amount < 0)) {
@@ -21,52 +21,91 @@ const validateIngredientData = (data) => {
   return errors;
 };
 
-const getAllIngredients = async (req, res) => {
+const _getDishByIdWithCallback = callbackify(function (id) {
+  return Dish.findById(id).exec();
+});
+
+const _getIngredientsByDishIdCallback = callbackify(function (dishId) {
+  return Dish.findById(dishId).select("ingredients").exec();
+});
+
+const _saveDishWithCallback = callbackify(function (dish) {
+  return dish.save();
+});
+
+const getAllIngredients = (req, res) => {
   try {
-    const ingredients = await Ingredient.find();
-    res.status(200).json(ingredients);
+    _getIngredientsByDishIdCallback(
+      req.params.dishId,
+      function (error, ingredients) {
+        if (error) {
+          return res.status(500).json({ message: error.message });
+        }
+        if (!ingredients) {
+          return res.status(404).json({ message: "Dish not found" });
+        }
+
+        res.status(200).json(ingredients);
+      }
+    );
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-const getIngredientById = async (req, res) => {
+const getIngredientById = (req, res) => {
   try {
-    const { id } = req.params;
+    const { dishId, id } = req.params;
     if (!validateObjectId(id)) {
       return res.status(400).json({ message: "Invalid ingredient ID format" });
     }
 
-    const ingredient = await Ingredient.findById(id);
-    if (!ingredient) {
-      return res.status(404).json({ message: "Ingredient not found" });
-    }
+    _getIngredientsByDishIdCallback(dishId, function (error, dish) {
+      if (error) {
+        return res.status(500).json({ message: error.message });
+      }
+      if (!dish) {
+        return res.status(404).json({ message: "Dish not found" });
+      }
 
-    res.status(200).json(ingredient);
+      const ingredient = dish.ingredients.find((i) => i._id == id);
+      if (!ingredient) {
+        return res.status(404).json({ message: "Ingredient not found" });
+      }
+      res.status(200).json(ingredient);
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-const createIngredient = async (req, res) => {
+const createIngredient = (req, res) => {
   try {
     const validationErrors = validateIngredientData(req.body);
     if (validationErrors.length > 0) {
       return res.status(400).json({ message: validationErrors.join(", ") });
     }
 
-    const newIngredient = new Ingredient(req.body);
-    const ingredient = await newIngredient.save();
-    res.status(201).json({
-      message: "Ingredient created successfully",
-      ingredient: ingredient,
-    });
+    _performActionOnIngredient(
+      res,
+      req,
+      "Ingredient created successfully",
+      function (ingredients, ingredient) {
+        ingredients.push({
+          name: req.body.name,
+          amount: req.body.amount,
+          unit: req.body.unit,
+        });
+        return ingredients;
+      },
+      true
+    );
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-const updateIngredient = async (req, res) => {
+const updateIngredient = (req, res) => {
   try {
     const { id } = req.params;
     if (!validateObjectId(id)) {
@@ -78,23 +117,29 @@ const updateIngredient = async (req, res) => {
       return res.status(400).json({ message: validationErrors.join(", ") });
     }
 
-    const ingredient = await Ingredient.findByIdAndUpdate(id, req.body, {
-      new: true,
-    });
-    if (!ingredient) {
-      return res.status(404).json({ message: "Ingredient not found" });
-    }
-
-    res.status(200).json({
-      message: "Ingredient updated successfully",
-      ingredient: ingredient,
-    });
+    _performActionOnIngredient(
+      res,
+      req,
+      "Ingredient updated successfully",
+      function (ingredients, ingredient) {
+        return ingredients.map((i) => {
+          if (i._id == ingredient._id) {
+            ingredient.name = req.body.name;
+            ingredient.amount = req.body.amount;
+            ingredient.unit = req.body.unit;
+            return ingredient;
+          } else {
+            return i;
+          }
+        });
+      }
+    );
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-const partialUpdateIngredient = async (req, res) => {
+const partialUpdateIngredient = (req, res) => {
   try {
     const { id } = req.params;
     if (!validateObjectId(id)) {
@@ -112,44 +157,84 @@ const partialUpdateIngredient = async (req, res) => {
     if (validationErrors.length > 0) {
       return res.status(400).json({ message: validationErrors.join(", ") });
     } else {
-      const ingredient = await Ingredient.findByIdAndUpdate(
-        id,
-        { $set: req.body },
-        { new: true }
+      _performActionOnIngredient(
+        res,
+        req,
+        "Ingredient updated successfully",
+        function (ingredients, ingredient) {
+          if (req.body.name) ingredient.name = req.body.name;
+          if (req.body.amount) ingredient.amount = req.body.amount;
+          if (req.body.unit) ingredient.unit = req.body.unit;
+
+          return ingredients.map((i) => {
+            if (i._id == ingredient._id) {
+              return ingredient;
+            } else {
+              return i;
+            }
+          });
+        }
       );
-      if (!ingredient) {
-        return res.status(404).json({ message: "Ingredient not found" });
-      } else {
-        res.status(200).json({
-          message: "Ingredient updated successfully",
-          ingredient: ingredient,
-        });
-      }
     }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-const deleteIngredient = async (req, res) => {
+const deleteIngredient = (req, res) => {
   try {
     const { id } = req.params;
     if (!validateObjectId(id)) {
       return res.status(400).json({ message: "Invalid ingredient ID format" });
     }
-
-    const ingredient = await Ingredient.findByIdAndDelete(id);
-    if (!ingredient) {
-      return res.status(404).json({ message: "Ingredient not found" });
-    }
-
-    res.status(200).json({
-      message: "Ingredient deleted successfully",
-      ingredient: ingredient,
-    });
+    _performActionOnIngredient(
+      res,
+      req,
+      "Ingredient deleted successfully",
+      (ingredients, ingredient) => {
+        return ingredients.filter((i) => i._id != ingredient?._id);
+      }
+    );
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+};
+
+const _performActionOnIngredient = (
+  res,
+  req,
+  msg,
+  preSaveActionOnIngredient,
+  isCreate = false
+) => {
+  const { dishId, id } = req.params;
+  _getDishByIdWithCallback(dishId, function (error, dish) {
+    if (error) {
+      return res.status(500).json({ message: error.message });
+    }
+    if (!dish) {
+      return res.status(404).json({ message: "Dish not found" });
+    } else {
+      const ingredient = dish.ingredients.find((i) => i._id == id);
+      if (!ingredient && isCreate) {
+        return res.status(404).json({ message: "Ingredient not found" });
+      } else {
+        dish.ingredients = preSaveActionOnIngredient(
+          dish.ingredients,
+          ingredient
+        );
+        _saveDishWithCallback(dish, function (err, updatedDish) {
+          if (err) {
+            return res.status(500).json({ message: err.message });
+          }
+          res.status(200).json({
+            message: msg,
+            ingredient: updatedDish.ingredients.find((i) => i._id == id),
+          });
+        });
+      }
+    }
+  });
 };
 
 module.exports = {
