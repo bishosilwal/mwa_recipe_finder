@@ -1,6 +1,6 @@
 const Dish = require("../models/Dish");
 const Ingredient = require("../models/Ingredient");
-
+var callbackify = require("callbackify");
 
 function validateDish(dish) {
   if (typeof dish !== "object" || dish === null) {
@@ -42,10 +42,31 @@ function validateDish(dish) {
   }
 }
 
-const getAllDishes = async (req, res) => {
+const _getDishByIdWithCallback = callbackify(function (id) {
+  return Dish.findById(id).exec();
+});
+
+const _getDishesWithCallback = callbackify(function () {
+  return Dish.find().exec();
+});
+
+const _createDishWithCallback = callbackify(function (dish) {
+  return Dish.create(dish);
+});
+
+const _saveDishWithCallback = callbackify(function (dish) {
+  return dish.save();
+});
+
+const getAllDishes = (req, res) => {
   try {
-    const dishes = await Dish.find();
-    res.status(200).json(dishes);
+    _getDishesWithCallback(function (error, dishes) {
+      if (error) {
+        res.status(500).json({ message: error.message });
+      } else {
+        res.status(200).json(dishes);
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -54,52 +75,51 @@ const getAllDishes = async (req, res) => {
 const getDishById = async (req, res) => {
   try {
     const { id } = req.params;
-    const dish = await Dish.findById(id);
-    if (!dish) return res.status(404).json({ message: "Dish not found" });
-    res.status(200).json(dish);
+    _getDishByIdWithCallback(id, function (error, dish) {
+      if (error) {
+        res.status(500).json({ message: error.message });
+      } else if (!dish) {
+        res.status(404).json({ message: "Dish not found" });
+      } else {
+        res.status(200).json(dish);
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-const createDish = async (req, res) => {
+const createDish = (req, res) => {
   try {
     const dish = req.body;
     validateDish(dish);
-    const ingredientPromise = dish.ingredients?.map(async (ingredient) => {
-      let newIngredient = new Ingredient(ingredient);
-      return await newIngredient.save();
-    });
-    if (ingredientPromise) {
-      let ingredients = await Promise.all(ingredientPromise);
-      dish.ingredients = ingredients.map((ingredient) => ingredient._id);
-    } else {
-      dish.ingredients = [];
-    }
     const newDish = new Dish(dish);
-    const savedDish = await newDish.save();
-    res.status(201).json({
-      message: "Dish created successfully",
-      dish: savedDish,
-    });
+    let error = newDish.validateSync();
+    if (error) {
+      return res.status(400).json({ message: error.message });
+    } else {
+      // no need to manually assign req body's values, since they are validated and will not be added in document
+      _createDishWithCallback(newDish, function (error, savedDish) {
+        if (error) {
+          res.status(500).json({ message: error.message });
+        } else {
+          res.status(201).json({
+            message: "Dish created successfully",
+            dish: savedDish,
+          });
+        }
+      });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-const updateDish = async (req, res) => {
+const updateDish = (req, res) => {
   try {
-    const { id } = req.params;
     const dish = req.body;
     validateDish(dish);
-    const updatedDish = await Dish.findByIdAndUpdate(id, dish);
-    if (!updatedDish) {
-      return res.status(404).json({ message: "Dish not found" });
-    }
-    res.status(200).json({
-      message: "Dish updated successfully",
-      dish: updatedDish,
-    });
+    _updateOne(req, res, _fullDishUpdate);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -116,14 +136,7 @@ const partialUpdateDish = async (req, res) => {
         .json({ message: "Only one field can be updated at a time" });
     }
     validateDish(dish);
-    const updatedDish = await Dish.findByIdAndUpdate(id, dish, { new: true });
-    if (!updatedDish) {
-      return res.status(404).json({ message: "Dish not found" });
-    }
-    res.status(200).json({
-      message: "Dish updated successfully",
-      dish: updatedDish,
-    });
+    _updateOne(req, res, _partialDishUpdate);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -132,17 +145,93 @@ const partialUpdateDish = async (req, res) => {
 const deleteDish = async (req, res) => {
   try {
     const { id } = req.params;
-    const deletedDish = await Dish.findOneAndDelete({ _id: id });
-    if (!deletedDish)
-      return res.status(404).json({ message: "Dish not found" });
-    res.status(200).json({
-      message: "Dish deleted successfully",
-      dish: deletedDish,
+    const findOneDeleteCallback = callbackify(function (id) {
+      return Dish.findOneAndDelete({ _id: id }).exec();
+    });
+    findOneDeleteCallback(id, function (error, dish) {
+      const response = { status: 204, message: dish };
+      if (error) {
+        response.status = 500;
+        response.message = error;
+      } else if (!dish) {
+        response.status = 404;
+        response.message = { message: "Dish with ID not found" };
+      } else {
+        response.message = dish;
+        response.status = 200;
+      }
+
+      res.status(response.status).json(response.message);
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
+const _updateOne = function (req, res, dishUpdateCallback) {
+  const { id } = req.params;
+
+  _getDishByIdWithCallback(id, function (error, dish) {
+    const response = { status: 204, message: dish };
+    if (error) {
+      response.status = 500;
+      response.message = error;
+    } else if (!dish) {
+      response.status = 404;
+      response.message = { message: "Dish with ID not found" };
+    }
+    if (response.status !== 204) {
+      res.status(response.status).json(response.message);
+    }
+
+    dishUpdateCallback(req, res, dish);
+  });
+};
+
+const _fullDishUpdate = function (req, res, dish) {
+  dish.name = req.body.name;
+  dish.category = req.body.category;
+  dish.country = req.body.country;
+  dish.ingredients = req.body.ingredients;
+  _saveDishWithCallback(dish, function (err, updatedDish) {
+    const response = { status: 204, message: updatedDish };
+    if (err) {
+      response.status = 500;
+      response.message = err;
+    } else if (!updatedDish) {
+      response.status = 404;
+      response.message = { message: "Dish with ID not found" };
+    } else {
+      response.message = updatedDish;
+      response.status = 200;
+    }
+    res.status(response.status).json(response.message);
+  });
+};
+
+const _partialDishUpdate = function (req, res, dish) {
+  if (req.body.name) dish.name = req.body.name;
+  if (req.body.category) dish.category = req.body.category;
+  if (req.body.country) dish.country = req.body.country;
+  if (req.body.ingredients) dish.ingredients = req.body.ingredients;
+  _saveDishWithCallback(dish, function (err, updatedDish) {
+    const response = { status: 204, message: updatedDish };
+    if (err) {
+      console.log("Error updating dish");
+      response.status = 500;
+      response.message = err;
+    } else if (!updatedDish) {
+      console.log("Dish with given ID not found");
+      response.status = 404;
+      response.message = { message: "Dish with ID not found" };
+    } else {
+      response.message = updatedDish;
+      response.status = 200;
+    }
+    res.status(response.status).json(response.message);
+  });
+};
+
 
 module.exports = {
   getAllDishes,
