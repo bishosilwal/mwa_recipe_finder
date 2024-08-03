@@ -1,14 +1,19 @@
 require("dotenv").config();
 require("./src/data/db");
 const express = require("express");
-const helmet = require("helmet");
 
 const dishRouter = require("./src/routes/dishRoutes");
 const ingredientRouter = require("./src/routes/ingredientRoutes");
 
 const app = express();
 
-app.use(helmet());
+// CORS configuration
+app.use(function (req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
