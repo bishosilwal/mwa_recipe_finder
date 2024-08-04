@@ -1,18 +1,11 @@
 const mongoose = require("mongoose");
-const ingredient = require("./Ingredient");
+const ingredientSchema = require("./Ingredient");
 
 const dishSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  category: { type: String, required: false },
-  country: { type: String, rerquired: false },
-  ingredients: [{ type: mongoose.Schema.Types.ObjectId, ref: "Ingredient" }],
-});
-
-// Pre-delete middleware to remove related ingredients
-dishSchema.pre("findOneAndDelete", async function (next) {
-  const dish = await this.model.findOne(this.getFilter());
-  await ingredient.deleteMany({ _id: { $in: dish.ingredients } });
-  next();
+  category: { type: String, required: true },
+  country: { type: String, required: false },
+  ingredients: [ingredientSchema],
 });
 
 module.exports = mongoose.model("Dish", dishSchema, "dish");

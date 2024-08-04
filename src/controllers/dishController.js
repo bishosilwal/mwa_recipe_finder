@@ -1,8 +1,7 @@
 const Dish = require("../models/Dish");
-const Ingredient = require("../models/Ingredient");
 
 
-function validateDish(dish) {
+  function validateDish(dish) {
   if (typeof dish !== "object" || dish === null) {
     throw new Error("Dish must be an object");
   }
@@ -57,31 +56,29 @@ const getDishById = async (req, res) => {
     const dish = await Dish.findById(id);
     if (!dish) return res.status(404).json({ message: "Dish not found" });
     res.status(200).json(dish);
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
+
 const createDish = async (req, res) => {
   try {
     const dish = req.body;
     validateDish(dish);
-    const ingredientPromise = dish.ingredients?.map(async (ingredient) => {
-      let newIngredient = new Ingredient(ingredient);
-      return await newIngredient.save();
-    });
-    if (ingredientPromise) {
-      let ingredients = await Promise.all(ingredientPromise);
-      dish.ingredients = ingredients.map((ingredient) => ingredient._id);
-    } else {
-      dish.ingredients = [];
-    }
     const newDish = new Dish(dish);
-    const savedDish = await newDish.save();
-    res.status(201).json({
-      message: "Dish created successfully",
-      dish: savedDish,
-    });
+    let error = newDish.validateSync();
+    if (error) {
+      return res.status(400).json({ message: error.message });
+    } else {
+      const newDish = new Dish(dish);
+      const savedDish = await newDish.save();
+      res.status(201).json({
+        message: "Dish created successfully",
+        dish: savedDish,
+      });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -92,6 +89,10 @@ const updateDish = async (req, res) => {
     const { id } = req.params;
     const dish = req.body;
     validateDish(dish);
+    dish.name = req.body.name;
+    dish.category = req.body.category;
+    dish.country = req.body.country;
+    dish.ingredients = req.body.ingredients;
     const updatedDish = await Dish.findByIdAndUpdate(id, dish);
     if (!updatedDish) {
       return res.status(404).json({ message: "Dish not found" });
@@ -116,6 +117,10 @@ const partialUpdateDish = async (req, res) => {
         .json({ message: "Only one field can be updated at a time" });
     }
     validateDish(dish);
+    if (req.body.name) dish.name = req.body.name;
+    if (req.body.category) dish.category = req.body.category;
+    if (req.body.country) dish.country = req.body.country;
+    if (req.body.ingredients) dish.ingredients = req.body.ingredients;
     const updatedDish = await Dish.findByIdAndUpdate(id, dish, { new: true });
     if (!updatedDish) {
       return res.status(404).json({ message: "Dish not found" });
