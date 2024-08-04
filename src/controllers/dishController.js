@@ -43,8 +43,22 @@ const Dish = require("../models/Dish");
 
 const getAllDishes = async (req, res) => {
   try {
-    const dishes = await Dish.find();
-    res.status(200).json(dishes);
+    let offset = 0;
+    let count = 5;
+    if (req.query && req.query.offset) {
+      offset = parseInt(req.query.offset, 10);
+    }
+    if (req.query && req.query.count) {
+      count = parseInt(req.query.count, 10);
+    }
+    const dishes = await Dish.find().skip(offset).limit(count);
+    const totalCount = await Dish.countDocuments();
+    res.status(200).json({
+      dishes: dishes,
+      offset: offset,
+      count: count,
+      totalCount: totalCount,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
