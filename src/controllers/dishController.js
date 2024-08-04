@@ -99,7 +99,7 @@ const updateDish = async (req, res) => {
     }
     res.status(200).json({
       message: "Dish updated successfully",
-      dish: updatedDish,
+      dish: dish,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
