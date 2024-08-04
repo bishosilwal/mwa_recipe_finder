@@ -64,18 +64,33 @@ const getAllDishes = async (req, res) => {
   }
 };
 
+const getBySearch = async (req, res, next) => {
+  try {
+    if (!!req.query?.search) {
+      const dishes = await Dish.find({
+        name: new RegExp("." + req.query.search + ".*", "i"),
+      });
+      res.status(200).json({ dishes: dishes });
+    } else {
+      res.redirect("/api/dishes");
+      next();
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getDishById = async (req, res) => {
   try {
     const { id } = req.params;
     const dish = await Dish.findById(id);
     if (!dish) return res.status(404).json({ message: "Dish not found" });
     res.status(200).json(dish);
-
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 
 const createDish = async (req, res) => {
   try {
@@ -170,4 +185,5 @@ module.exports = {
   updateDish,
   partialUpdateDish,
   deleteDish,
+  getBySearch,
 };
