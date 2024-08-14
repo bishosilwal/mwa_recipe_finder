@@ -4,6 +4,7 @@ const express = require("express");
 var cors = require("cors");
 const dishRouter = require("./src/routes/dishRoutes");
 const ingredientRouter = require("./src/routes/ingredientRoutes");
+const userRouter = require("./src/routes/userRoutes");
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api/dishes", dishRouter);
 app.use("/api/dishes/", ingredientRouter);
+app.use("/api/users", userRouter);
 
 app.use((req, res, next) => {
   res.status(404).json({ message: "Not found" });
