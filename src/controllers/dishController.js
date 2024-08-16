@@ -1,7 +1,7 @@
 const Dish = require("../models/Dish");
+const httpCode = require("../utils/httpStatusCodes");
 
-
-  function validateDish(dish) {
+function validateDish(dish) {
   if (typeof dish !== "object" || dish === null) {
     throw new Error("Dish must be an object");
   }
@@ -28,6 +28,7 @@ const Dish = require("../models/Dish");
       ) {
         throw new Error("Ingredient name must be a non-empty string");
       }
+      ingredient.amount = parseFloat(ingredient.amount);
       if (typeof ingredient.amount !== "number" || isNaN(ingredient.amount)) {
         throw new Error("Ingredient amount must be a number");
       }
@@ -41,6 +42,20 @@ const Dish = require("../models/Dish");
   }
 }
 
+const _sendResponse = (res, responseData) => {
+  res.status(responseData.status).json(responseData.data);
+};
+
+const responseData = {
+  status: httpCode.SUCCESS,
+  data: {},
+};
+
+const _setErrorResponse = (error) => {
+  responseData.status = httpCode.INTERNAL_SERVER_ERROR;
+  responseData.data = { message: error.message };
+};
+
 const getAllDishes = async (req, res) => {
   try {
     let offset = 0;
@@ -53,15 +68,17 @@ const getAllDishes = async (req, res) => {
     }
     const dishes = await Dish.find().skip(offset).limit(count);
     const totalCount = await Dish.countDocuments();
-    res.status(200).json({
+    responseData.data = {
       dishes: dishes,
       offset: offset,
       count: count,
       totalCount: totalCount,
-    });
+    };
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    responseData.status = httpCode.INTERNAL_SERVER_ERROR;
+    responseData.data = { message: error.message };
   }
+  _sendResponse(res, responseData);
 };
 
 const getBySearch = async (req, res, next) => {
@@ -70,26 +87,36 @@ const getBySearch = async (req, res, next) => {
       const dishes = await Dish.find({
         name: new RegExp("." + req.query.search + ".*", "i"),
       });
-      res.status(200).json({ dishes: dishes });
+      responseData.data = {
+        dishes: dishes,
+      };
     } else {
       res.redirect("/api/dishes");
       next();
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: error.message });
+    _setErrorResponse(error);
   }
+  _sendResponse(res, responseData);
 };
 
 const getDishById = async (req, res) => {
   try {
     const { id } = req.params;
     const dish = await Dish.findById(id);
-    if (!dish) return res.status(404).json({ message: "Dish not found" });
-    res.status(200).json(dish);
+    responseData.data = {
+      dish: dish,
+    };
+    if (!dish) {
+      responseData.status = httpCode.NOT_FOUND;
+      responseData.data = { message: "Dish not found" };
+    }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    _setErrorResponse(error);
+    responseData.status = httpCode.INTERNAL_SERVER_ERROR;
+    responseData.data = { message: error.message };
   }
+  _sendResponse(res, responseData);
 };
 
 const createDish = async (req, res) => {
@@ -99,18 +126,21 @@ const createDish = async (req, res) => {
     const newDish = new Dish(dish);
     let error = newDish.validateSync();
     if (error) {
-      return res.status(400).json({ message: error.message });
+      responseData.status = httpCode.BAD_REQUEST;
+      responseData.data = { message: error.message };
     } else {
       const newDish = new Dish(dish);
       const savedDish = await newDish.save();
-      res.status(201).json({
-        message: "Dish created successfully",
+      responseData.data = {
         dish: savedDish,
-      });
+        message: "Dish created successfully",
+      };
+      responseData.status = httpCode.CREATED;
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    _setErrorResponse(error);
   }
+  _sendResponse(res, responseData);
 };
 
 const updateDish = async (req, res) => {
@@ -123,16 +153,18 @@ const updateDish = async (req, res) => {
     dish.country = req.body.country;
     dish.ingredients = req.body.ingredients;
     const updatedDish = await Dish.findByIdAndUpdate(id, dish);
-    if (!updatedDish) {
-      return res.status(404).json({ message: "Dish not found" });
-    }
-    res.status(200).json({
-      message: "Dish updated successfully",
+    responseData.data = {
       dish: dish,
-    });
+      message: "Dish updated successfully",
+    };
+    if (!updatedDish) {
+      responseData.status = httpCode.NOT_FOUND;
+      responseData.data = { message: "Dish not found" };
+    }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    _setErrorResponse(error);
   }
+  _sendResponse(res, responseData);
 };
 
 const partialUpdateDish = async (req, res) => {
@@ -141,9 +173,11 @@ const partialUpdateDish = async (req, res) => {
     const dish = req.body;
     //check if only one field is being updated
     if (Object.keys(req.body).length !== 1) {
-      return res
-        .status(400)
-        .json({ message: "Only one field can be updated at a time" });
+      responseData.status = httpCode.BAD_REQUEST;
+      responseData.data = {
+        message: "Only one field can be updated at a time",
+      };
+      return _sendResponse(res, responseData);
     }
     validateDish(dish);
     if (req.body.name) dish.name = req.body.name;
@@ -151,31 +185,36 @@ const partialUpdateDish = async (req, res) => {
     if (req.body.country) dish.country = req.body.country;
     if (req.body.ingredients) dish.ingredients = req.body.ingredients;
     const updatedDish = await Dish.findByIdAndUpdate(id, dish, { new: true });
-    if (!updatedDish) {
-      return res.status(404).json({ message: "Dish not found" });
-    }
-    res.status(200).json({
-      message: "Dish updated successfully",
+    responseData.data = {
       dish: updatedDish,
-    });
+      message: "Dish updated successfully",
+    };
+    if (!updatedDish) {
+      responseData.status = httpCode.NOT_FOUND;
+      responseData.data = { message: "Dish not found" };
+    }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    _setErrorResponse(error);
   }
+  _sendResponse(res, responseData);
 };
 
 const deleteDish = async (req, res) => {
   try {
     const { id } = req.params;
     const deletedDish = await Dish.findOneAndDelete({ _id: id });
-    if (!deletedDish)
-      return res.status(404).json({ message: "Dish not found" });
-    res.status(200).json({
+    responseData.data = {
       message: "Dish deleted successfully",
       dish: deletedDish,
-    });
+    };
+    if (!deletedDish) {
+      responseData.status = httpCode.NOT_FOUND;
+      responseData.data = { message: "Dish not found" };
+    }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    _setErrorResponse(error);
   }
+  _sendResponse(res, responseData);
 };
 
 module.exports = {
